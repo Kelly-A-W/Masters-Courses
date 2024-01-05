@@ -1,0 +1,232 @@
+---
+title: "NLME Class Exercise"
+author: "Kelly Williams"
+date: "11/05/2022"
+output: pdf_document
+---
+
+```{r}
+
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Load packages
+library(nlme)
+
+```
+
+
+# Question 2:
+
+The form of the response suggests that a logistic model can be used to model the change in blood pressure as a function of the *logarithm* of the concentration of PBG. 
+
+```{r}
+
+# load data
+data("PBG")
+
+# change dose to log(dose)
+PBG$dose <- log(PBG$dose)
+str(PBG)
+head(PBG)
+
+```
+
+
+## Question 2(a):
+
+Fit separate four-parameter logistic models to the data from each treatment within each rabbit. Note that the grouping formula should be ~Rabbit/Treatment, becasue each rabbit has observations for BOTH treatments, but the grouping display formula is ~Rabbit. 
+
+The model formulation for such a model is:
+
+$$y_{ij} = B + \frac{A-B}{1 + \exp[(\phi_{xmid} - x_{dose})/ \phi_{scal}]},$$
+
+where $A$ is the horizontal asymptote as dosages get very small, $B$ is the horizontal asymptote as dosages get very large, $\phi_{xmid}$ is the inflection point and  $\phi_{scal}$ is the scale parameter. $y_{ij}$ is the change in blood pressure for rabbit $i$ on treatment $j$. 
+
+
+```{r}
+
+# First update grouped data object to capture treatment within rabbit
+
+pbg <- groupedData(deltaBP ~ dose | Rabbit/Treatment, data = PBG)
+head(pbg)
+
+# Now fit 4 parameter logistic model
+mod1 <- nlsList(deltaBP ~ SSfpl(dose, A, B, xmid, scal), data = pbg)
+summary(mod1)
+
+```
+
+The error means that nlsList was unable to fit models for rabbit 5 with treatment MDL 72222  and rabbit 3 with treatment MDL 72222 , however it was able to fit models for all the other rabbit*treatment combinations. 
+
+
+
+## Question 2(b):
+
+Plot the confidence intervals of the coefficients for Model 1. 
+
+
+```{r}
+
+plot(intervals(mod1))
+
+```
+
+$A$, the horizontal asymptote on the left, as well as to some extent the scale parameter $\phi_{scal}$ both seem to be constant across all Rabbit/Treatment combinations, suggesting that these parameters may not need random effects. The horizontal asymptote on the right $B$ definitely seems to vary across all Rabbit/Treatment combinations, suggesting that random effects at the rabbit-level and treatment-level may be needed on this parameter. 
+
+The inflection point parameter $\phi_{xmid}$ seems to vary in a *systematic* way with treatment, with the placebo intervals always located on the left and MDL 72222 treatment intervals always on the right, suggesting that $\phi_{xmid}$ may need a treatment *fixed* effect. $\phi_{xmid}$ intervals also vary randomly from one rabbit to the next, suggesting that a rabbit-level random effect may also be needed on this parameter.
+
+
+
+## Question 2(c):
+
+
+Now we will fit a model with a fixed effect for treatment on the $\phi_{xmid}$ parameter, denoted $X_{treat}$ and random effects for rabbit on the $B$ parameter, denoted $b_{0i}$, and for treatment within rabbit on the $B$, denoted $b_{0i,j}$, and $\phi_{xmid}$, denoted $b_{1i,j}$.
+
+$$y_{ij} = (B + b_{0i} + b_{0i,j}) + \frac{A-(B + b_{0i} + b_{0i,j})}{1 + \exp[(\phi_{xmid} + X_{treat} + b_{1i,j} - x_{dose})/ \phi_{scal}]},$$
+We begin with just a simple diagonal $\mathbf{\psi}_2$ matrix. Note that we have two parameters for the inflection point, one relating relating to the active treatment and one measuring the modification to this effect for the placebo treatment. Thus we will use zero as the starting value for this modification effects, and for the remaining model parameters with will use Model 1's estimates as starting values. 
+
+```{r}
+# first store fixed effects to use as initial starting values
+start1 <- fixef(mod1)
+
+# Now fit 4 parameter logistic model
+mod2 <- nlme(deltaBP ~ SSfpl(dose, A, B, xmid, scal), data = pbg, 
+             fixed = c(A+B+scal~1, xmid~Treatment),  # only xmid has a fixed effect
+             start = c(start1[1], start1[2], start1[3], 0, start1[4]), # modification effect starting at zero
+             random = list(Rabbit=pdDiag(B~1), Treatment=pdDiag(xmid+B~1)))
+summary(mod2)
+
+```
+
+The standard deviation for the treatment-within-rabbit random effect on  $\phi_{xmid}$ and $B$ was $2.143 \times 10^{-5}$ and 0.0006 respectively, both of which are very small and suggest that perhaps a treatment-within-rabbit random effect is not needed on $\phi_{xmid}$ nor $B$. 
+
+For rabbits on the placebo treatment, the inflection point is shifted 0.73 units to the left compared to that for rabbits on the active treatment. 
+
+Since the model converged, we can now fit the same model but using a general $\mathbf{\psi}_2$ matrix rather than a diagonal one. 
+
+```{r}
+
+mod3 <- update(mod2, random = list(Rabbit=pdDiag(B~1), Treatment=xmid+B~1)) 
+# treatment level covariance matrix no longer has to be diagonal
+summary(mod3)
+
+```
+While the standard deviation for the treatment-level random effect on $B$ has improved significantly and is now 6.594, the standard deviation for the treatment-level random effect on $\phi_{xmid}$ is now even smaller at $7.69 \times 10^{-7}$. It is also perfectly correlated with the treatment-level random effect on $B$, further suggesting that the treatment-level random effect on $\phi_{xmid}$ may not be necessary. 
+
+
+We can now conduct an ANOVA test to compare the two models. 
+
+```{r}
+
+anova(mod2, mod3)
+
+```
+The likelihood-ratio test between Model 2 and Model 3 resulted in a highly significant p-value, thus we reject the null hypothesis that the treatment-level random effects are not correlated and we prefer Model 3 over Model 2. 
+
+
+
+## Question 2(d):
+
+The fixed effect for treatment on the inflection point parameter had a very low p-value, suggesting that this fixed effect is significant and that the inflection points between the two treatment groups differ significantly. We can check Model 3 further by looking at the parameter confidence intervals:
+
+```{r}
+
+intervals(mod3, which = "fixed")
+
+```
+We cannot get confidence intervals on the variance-covariance components, so instead we just look at the confidence intervals for the fixed effects. All of the confidence intervals are fairly narrow and do not include zero, suggesting that the estimates are fairly accurate, with the exception perhaps of $B$, which has quite a wide confidence interval. 
+
+
+
+## Question 2(e):
+
+Now we can plot the augmented predictions from Model 3 in order to assess the fit of the model.
+
+```{r}
+
+plot(augPred(mod3), layout=c(5,2))
+
+```
+
+No obvious model deficiencies are visible - the model seems to fit the data well overall. 
+
+
+
+## Question 2(f):
+
+Next we examine the residuals of Model 3 in order to identify in possible deficiencies in the model. We start with the normal probability plot below. There is some deviation from normality, suggesting that the normality assumption of the residuals may not be valid. 
+
+```{r}
+
+qqnorm(mod3)
+
+```
+Next we can check to see if the normal probabilities differ between treatments. Looking below it seems as if the normal probabilities do not differ significantly between treatments. 
+
+```{r}
+
+qqnorm(mod3, ~resid(.)|Treatment)
+
+```
+
+The variance of the standardised residuals clearly increases as the fitted values increase, suggesting that the assumptions of constant variance of the residuals is not valid and that the model is not well-specified.  
+
+```{r}
+
+plot(mod3, id=0.05, adj=-1)
+
+```
+
+We can also check plots of the random effects versus covariates to see if important fixed effects have been omitted. 
+
+```{r}
+
+ranef(mod3, level=1, aug=T)
+ranef(mod3, level=2, aug=T)
+
+```
+
+We can see that treatment is not being added as a covariate, probably because treatment is also the level of a random effect. Thus for our next model we will just use a subject-level random effect and not a treatment-level random effect as well. Dose stays constants with the random effects both at the subject and treatment level. 
+
+
+
+## Question 2(g):
+
+Now we will fit a three-parameter logistic curve in order to assess whether four parameters are actually necessary.
+
+
+```{r}
+
+#mod4 <- nlme(deltaBP ~ SSlogis(dose, Asym, xmid, scal), data = pbg, 
+             #fixed = Asym+xmid+scal~1,  
+             #start = c(start1[1], start1[2], start1[3], start1[4]), 
+             #random = list(Rabbit=pdDiag(Asym+xmid+scal~1)))
+#summary(mod4)
+
+
+
+```
+
+
+
+
+# Question 3:
+
+## Question 3(a):
+
+```{r}
+
+head(Glucose2)
+
+```
+
+
+```{r}
+
+plot(Glucose2, level=1)
+
+```
+There definitely seems to be variation between the two days, mostly in terms of rate, but there does not seem to be an systematic difference between day 1 and day 2. 
