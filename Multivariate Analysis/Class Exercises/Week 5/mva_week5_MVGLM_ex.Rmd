@@ -1,0 +1,123 @@
+---
+title: 'MVA Week 5: MVGLM Class Exercise'
+author: "Kelly Williams"
+date: "23/03/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+
+```{r}
+# Initialise
+
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Install packages
+library(ade4)
+library(lme4)
+# library(boral)   # cannot use jags on M1 chip ...
+library(dplyr)
+library(fastDummies)
+```
+
+
+```{r}
+
+data(aravo)
+str(aravo)
+
+```
+
+```{r}
+y <- aravo$spe
+dim(y) # more variables than columns !
+```
+
+```{r}
+# Removing quite a few variables because run times are quite long
+# remove variables that mostly have 0's for observations:
+sel.spp <- colSums(y>0)>30 # colSums(y>0) gives the number of non-zero observations for each variable
+# thus colSums(y>0)>30 indicates which variables have more than 30 non-zero observations 
+y <- y[,sel.spp] # we only want top keep the variables that have more than 30 non-zero observations 
+dim(y) # many more observations than variables - much better!
+
+```
+
+$y$ is a data frame containing the abundance values of 12 species (columns) of trees over 75 sites (rows). 
+
+```{r}
+X <- aravo$env
+str(X)
+```
+
+$X$ is a data frame with the measurements of 6 environmental variables (columns) for the 15 sites (rows). Notice that two of the variables, variables 3 and 5, are FACTOR variables. Thus we need to REPLACE these factor variables with INDICATOR variables as follows. 
+
+
+```{r}
+
+d1 <- dummy_cols(X[,3])[,-1] # creating an indicator variable for Form
+d2 <- dummy_cols(X[,5])[,-1] # creating an indicator variable for ZoogD (Zoogenic disturbance)
+X <- cbind(X, d1, d2)        # add these indicators to our data farme
+X <- X[,-c(3,5)]             # remove the two factor variables
+str(X)
+
+```
+ We can see that the factor variable Form was replaced by 5 indicator variables, one for each level of the factor variable Form. Similarly so for ZoogD. 
+ 
+Now we can create our traits data frame, with the measurements of 8 traits (columns) for the 82 tree species (rows). However, remember that we chose to only use 12 tree species, so we need to remove all the tree species that are not in our data frame $y$.
+
+```{r}
+
+traits <- aravo$traits[sel.spp,] # keeping only the tree species that are contained in y
+str(traits)
+
+```
+
+Last step before we can use Boral, we need to create a list called which.traits. which.traits is a list of length equal to (number of columns in the covariate matrix + 1), informing which columns of the trait matrix the response-specific intercepts and each of the response-specific regression coefficients should be regressed against. The first element in the list applies to the response-specific intercept, while the remaining elements apply to the regression coefficients. Each element of which.traits is a vector indicating which traits are to be used. 
+
+We want EVERY response-specific regression coefficient and the response-specific intercept to be regressed against ALL the the columns of the trait matrix (i.e. so all of the traits). Thus we need to create a list with 12+1=13 elements where each element is a vector containing elements 1 to 8. 
+
+```{r}
+
+which.traits <- vector("list",ncol(X)+1)
+for(i in 1:length(which.traits)) which.traits[[i]] <- 1:ncol(traits)
+
+```
+
+```{r, eval=FALSE}
+
+fit.traits <- boral(y, 
+                    X = X, 
+                    traits = traits, 
+                    which.traits = which.traits, 
+                    family = "negative.binomial", # assumes all columns of the response matrix come from this distribution
+                    lv.control=list(num.lv=2,type="independent"), # generate 2 latent variables with independent
+                                                                  # correlation structures across sites
+                    calc.ics = FALSE,    # don't return the various information criteria values
+                    save.model = TRUE,   # the JAGS model file is saved as a text file (with name given by model.name) 
+                                         # in the current working directory as well as the MCMC samples, which 
+                                         # themselves can be extracted using the get.mcmcsamples function
+                                         # Note MCMC samples can take up a lot of memory!
+                    hypparams = c(100,20,100,50))
+
+summary(fit.traits)
+
+```
+
+The default priors (used above) are:
+c("normal","normal","normal","uniform")
+
+hypparams: Vector of four hyperparameters used in the set up of prior distributions. In order, these are: 1) affects the prior distribution for all response-specific intercepts, row effects, and cutoff points for ordinal data; 2) affects the prior distribution for all latent variable coefficients. This is ignored if num.lv = 0; 3) affects the prior distribution for response-specific coefficients relating to the covariate matrix (ignored if X = NULL). When traits are included in the model, it also affects the prior distribution for the trait regression coefficients; 4) affects the prior distribution for any dispersion parameters, as well as the prior distributions for the standard deviation of the random effects normal distribution if row.eff = "random", the standard deviation of the response-specific random intercepts for these columns if more than two of the columns are ordinal, and the standard deviation of the random effects normal distribution for trait regression coefficients when traits are included in the model.
+
+Defaults to the vector c(10, 10, 10, 30). The use of normal distributions with mean zero and variance 10 as priors is seen as one type of (very) weakly informative prior, according to Prior choice recommendations.
+
+

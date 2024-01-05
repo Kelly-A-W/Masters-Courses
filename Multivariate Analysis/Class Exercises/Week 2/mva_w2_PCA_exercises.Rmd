@@ -1,0 +1,139 @@
+---
+title: 'MVA Week 2: PCA'
+author: "Kelly Williams"
+date: "27/02/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, results='hide', warning=FALSE}
+# Initialise
+
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Install packages
+#install.packages("MASS")
+library(MASS)
+#install.packages("rrr")
+library(rrr)
+```
+
+
+```{r, results='markup'}
+
+# Load data
+data("iris")
+# ignore species column
+# the variables should all be measured in the same units, but scale just in case
+dat <- iris[,1:4]
+dat <- scale(dat)
+head(dat)
+
+```
+
+
+
+
+# RRR Approach:
+
+First we compute the principal components using the reduced rank reduction (RRR) method, setting Y=X and the matrix of parameters equal to the identity matrix.
+
+```{r, results='markup'}
+
+X <- as.matrix(dat, nrow = nrow(dat), ncol = ncol(dat))
+rrrfit <- rrr(X, 
+              X,  # because when performing RRR for PCA we set Y=X
+              k = 0)
+# note that you do NOT need to add type = "pca"
+# the above gives the same results !
+# if you do use type = "pca", use rrrfit$PC to retrieve components
+summary(rrrfit)
+```
+
+We can then extract the A matrix, who's columns are the equal to the principal components of the data. In other words, the first column is the first principal component, the second column the second principal component, etc. The first principal component seems to be a combination of the variables sepal length, petal length and petal width, all of which load positively fairly highly and equally on the component, meaning that they are strongly positively correlated to the first principal component. They are contrasted slightly with sepal width which has a weak negative loading. The second principal component mainly represents sepal width which loads very highly but negatively on it. Sepal length also loads slightly on this component but the other two variables barely load on it at all. So the second principal component can be seen as representing the sepal properties, with an emphasis on sepal length. The third principal component seems to contrast sepal length which has a strong positive loading with petal width which has a strong negative loading. The fourth component contrasts petal length which has a strong negative loading against petal width which has a strong positive loading. Thus the fourth component seems to contrast the two petal measurements. 
+
+
+```{r, results='markup'}
+
+rrrfit$A
+
+```
+
+The matrix B is just the transpose of matrix A. So the rows of B are the principal components. 
+
+```{r, results='markup'}
+
+rrrfit$B
+
+```
+
+Next we can calculate the cumulative proportion of variance explained by component $i$ by taking the the sum of the the eigenvalues of the principal components 1 to $i$ and then dividing this over the sum of the eigenvalues of all the principal components. This is equivalent to dividing variance explained by the $i$-dimensional approximation by the total variance. The first component explains 73% of the total variation while the first two components together explain 96% of the total variation. From there on wards there is only a small increase in  the percentage of variance explained, suggesting that a 2-dimensional approximation may be the ideal choice.
+
+
+```{r, results='markup'}
+
+cp1 <- rrrfit$eigen_values[1]/sum(rrrfit$eigen_values)
+cp2 <- (rrrfit$eigen_values[1]+rrrfit$eigen_values[2])/sum(rrrfit$eigen_values)
+cp3 <- (rrrfit$eigen_values[1]+rrrfit$eigen_values[2]+rrrfit$eigen_values[3])/sum(rrrfit$eigen_values)
+cp4 <- 1
+
+cp1
+cp2
+cp3
+cp4
+
+```
+ 
+From the scree plot below we can see that the elbow of the plot is at $x=2$, illustrating again how the variance suggests that 2 principal components are all that's needed for a good lower dimensional approximation. 
+
+```{r, fig.pos="H",fig.align='center'}
+plot(x=c(1,2,3,4), y=rrrfit$eigen_values,
+     xlab = "Components",
+     ylab = "Variance",
+     pch = 16, 
+     type = "b", 
+     main = "Scree plot for the Iris data using RRR" )
+
+```
+
+
+
+
+# PRcomp Approach:
+
+We can now perform PCA using the R function 'prcomp'. The results are pretty much the exact same as before, with the same principal component scores and cumulative proportion of variance explained. 
+
+```{r, results='markup'}
+
+prcfit <- prcomp(dat,scale=TRUE) # PCA on correlation matrix
+prcfit
+summary(prcfit)
+
+```
+
+The plot below shows the exact same information as the scree plot seen earlier and thus again it is suggested that 2 principal components are all that is needed for a good lower dimensional approximation of $X$.
+
+
+```{r, fig.pos="H",fig.align='center'}
+
+plot(prcfit, main = "")
+
+```
+
+The petal width and petal length variables point in the same direction, indicating possible high positive inter-variable correlation between these variables. The fact that these two variables are almost parallel with the x-axis illustrates that these two variables have strong positive loadings on the first principal component and almost no loading on the second principal component (as seen previously). Sepal length also loads fairly highly on the first principal component and has a weak negative loading on the second principal component. The sepal width arrow points downwards with a smaller angle between it and the y-axis, indicating that the variable loads quite highly and negatively on the second principal component and has a small negative loading on the first principal component. Overall the plot indicates that the first principal component does account for most of the variance. Sepal width and and sepal length have almost a 90 degree angle between them, suggesting that it is likely that they are not correlated. 
+
+The first principal component divides the observations into two distinct clusters, suggesting that the points in a given cluster are more similar to the other points in the same cluster as them, mainly in terms of their petal length and petal width and to some degree their sepal length. It suggests that the observations in the right cluster tend to score higher on the first principal component and thus will likely have larger petal widths, petal lengths and/or sepal lengths than the observations in the left cluster. There are also a couple of potential outliers, such as observations 42, 61, 110, 118 and 132.
+
+
+```{r, fig.pos="H",fig.align='center'}
+
+biplot(prcfit)
+
+```

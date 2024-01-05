@@ -1,0 +1,123 @@
+---
+title: 'Week 3: Poplynomial PCA: Quadratic Example'
+author: "Kelly Williams"
+date: "04/03/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Quadratic PCA
+
+## $X_1$ with noise and $X_2$ without noise
+
+First we need to generate our data:
+```{r}
+
+X1<-list();X2<-list();Z1<-list();Z2<-list()
+X20<-as.numeric(list());X21<-as.numeric(list());X23<-as.numeric(list())
+X1<-as.numeric(X1)
+X2<-as.numeric(X2)
+Z1<-as.numeric(Z1)
+Z2<-as.numeric(Z2)
+for (j in 1:201){
+  Z1[j]= rnorm(1, mean= 0, sd = 1)  # generating random numbers form the standard normal
+  X1[j]<--1.5*0.01*0.5+Z1[j]        # X_1 with noise
+  X2[j]<-4*X1[j]^2+4*X1[j]+2        # X_2 is a quadratic function of X_1
+  X20[j]<-4*X1[j]^2+4*X1[j]+0       # X_2 plus a constant 0
+  X21[j]<-4*X1[j]^2+4*X1[j]+1       # X_2 plus a constant 1
+  X23[j]<-4*X1[j]^2+4*X1[j]+3       # X_2 plus a constant 3
+}
+```
+
+
+
+Now perform the quadratic transformation of $\bf{X}$:
+
+```{r}
+X12<-X1^2
+X22<-X2^2
+X1X2<-X1*X2
+Xdata<-as.data.frame(cbind(X12,X22,X1,X2,X1X2)) # our quadratic transformation of X
+head(Xdata) 
+
+```
+
+
+First lets plot the true relationship between $X_1$ and $X_2$ (that we know because we generated $X_2$ from $X_1$):
+
+```{r}
+
+plot(X2~X1,main="Quadratic relationship between X2 and X1")
+
+```
+
+From the plot we can see that the relationship is exact. 
+
+Now perform (linear) PCA on our transformed data:
+
+```{r}
+
+PCA1<-prcomp(~X12+X22+X1+X2+X1X2,data=Xdata)
+PCA1
+summary(PCA1)
+names(PCA1)
+
+PC1<-princomp(Xdata, cor = FALSE, scores = TRUE)
+PC1$scores[,1]
+
+pairs(~PC1$scores[,1]+PC1$scores[,2]+PC1$scores[,3]+PC1$scores[,4],
+      main="Simple Scatterplot Matrix")
+
+X5<-PC1$scores[,5]+X2
+Xdata1<-data.frame(cbind(X1,X2,X20,X21,X23,X5))
+Xdata1<-Xdata1[order(X1),]
+plot(Xdata1$X20~Xdata1$X1,col="white")
+lines(Xdata1$X20~Xdata1$X1)
+lines(Xdata1$X21~Xdata1$X1)
+lines(Xdata1$X2~Xdata1$X1)
+lines(Xdata1$X23~Xdata1$X1)
+lines(Xdata1$X5~Xdata1$X1,col="red")
+
+plot(Xdata1$X2~Xdata1$X1)
+lines(Xdata1$X5~Xdata1$X1,col="red")
+```
+
+## $X_1$ and $X_2$ with noise
+
+```{r}
+
+for (j in 1:201){
+  Z1[j]= rnorm(1, mean= 0, sd = 1)
+  Z2[j]<-rnorm(1,mean=0,sd=1)
+  X1[j]<--1.5*0.01*0.5+Z1[j]
+  X2[j]<-4*X1[j]^2+4*X1[j]+2+Z2[j]
+  X2c<-4*X1[j]^2+4*X1[j]
+}
+
+X12<-X1^2
+X22<-X2^2
+X1X2<-X1*X2
+Xdata2<-as.data.frame(cbind(X12,X22,X1,X2,X1X2,X2c))
+head(Xdata2)
+
+plot(Xdata2$X2~Xdata2$X1,main="Noisy Quadratic Relationship")
+PCA2<-prcomp(~X12+X22+X1+X2+X1X2,data=Xdata2)
+PCA2
+
+PC2<-princomp(Xdata2, cor = FALSE, scores = TRUE)
+summary(PC2)
+PC2$scores[,5]
+pairs(~PC2$scores[,1]+PC2$scores[,2]+PC2$scores[,3]+PC2$scores[,4],
+      main="Simple Scatterplot Matrix")
+
+X5<-PC2$scores[,5]+X2
+Xdata2<-data.frame(cbind(X1,X2,X20,X21,X23,X5,X2c))
+Xdata2<-Xdata2[order(X1),]
+plot(Xdata2$X2~Xdata2$X1)
+lines(Xdata2$X5~Xdata2$X1,col="red")
+
+```

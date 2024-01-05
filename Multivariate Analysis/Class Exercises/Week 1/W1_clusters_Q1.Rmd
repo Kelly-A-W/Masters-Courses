@@ -1,0 +1,217 @@
+---
+title: 'Week 1: Cluster Analysis: Exercise 1'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r, results='hide', warning=FALSE}
+# Initialise
+
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Install packages
+#install.packages("mclust")
+library(mclust)
+#install.packages("MASS")
+library(MASS)
+#install.packages("cluster")
+library(cluster)
+
+```
+
+```{r, results='markup'}
+# Load data
+data("iris")
+head(iris)
+# ignore species column
+# the variables should all be measured in the same units, but scale just in case
+dat <- iris[,1:4]
+dat <- scale(dat)
+head(dat)
+
+```
+
+# 1.1 Hierarchical Clustering: Agglomorative Clustering
+
+## 1.1(a) Single Linkage
+
+
+```{r, results='hide'}
+
+hc_sl <- agnes(dat, 
+               diss=F,    # because our input is a data frame, not a dissimilarity matrix
+               metric="euclidean",   # euclidean makes the most sense here
+               method="single")      # single linkage
+summary(hc_sl)
+```
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+plot(hc_sl)
+
+```
+
+Agglomerative coefficient of 0.8, which is quite high and suggests that the strength of the clusters is strong. From the Dendrogram, it seems as if the observations could be well partitioned into two clusters, with only observation 42 not fitting well into any cluster, suggesting that observation 42 is an outlier.
+
+
+## 1.1(b). Complete Linkage
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+hc_cl <- agnes(dat, 
+               diss=F,    
+               metric="euclidean",   
+               method="complete")      
+plot(hc_cl)
+```
+
+Very high agglomerative coefficient of 0.94 suggesting that the strength of the clusters is strong. The Dendrogram seems to suggest a lot more clusters should be used than in the single linkage case. There also seems to be no obvious outliers.
+
+
+## 1.1(a). Average Linkage
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+hc_al <- agnes(dat, 
+               diss=F,    
+               metric="euclidean",   
+               method="average")      
+plot(hc_al)
+```
+
+Also very high agglomerative coefficient of 0.9 and the dendrogram also suggests more clusters. Again observation 42 seems to be an outlier.
+
+
+# 1.2 Hierarchical Clustering: Divisive
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+# compute divisive hierarchical clustering
+hc_d <- diana(dat)
+
+# Divise coefficient
+hc_d$dc
+
+# plot dendrogram
+pltree(hc_d, cex = 0.6, hang = -1, main = "Dendrogram of diana")
+```
+
+
+
+
+# 2.1 Non-Hierarchical Clustering: K-means
+
+First we need to choose the number of clusters that we should use. We will first use the Gap statistic to guide us in a choice of k.
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+set.seed(123)
+gap_km <- clusGap(dat, FUN=kmeans, K.max=6)
+plot(gap_km)
+gap_km
+```
+
+
+
+The highest Gap statistic is for 3 clusters, indicating that 3 clusters would be the optimal choice. Next we will compute the average silhouette width for clusters of size 2 to 6 to further guide us in our choice of k.
+
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+set.seed(123)
+k.max <- 6
+sil <- rep(0, k.max)
+for(i in 2:k.max){
+  km.res <- kmeans(dat, centers = i, nstart = 25)
+  ss <- silhouette(km.res$cluster, dist(dat))
+  sil[i] <- mean(ss[, 3])
+}
+plot(1:k.max, sil, type = "b", pch = 19,
+     frame = FALSE, xlab = "Number of clusters k")
+abline(v = which.max(sil), lty = 2)
+
+```
+
+The average silhouette width plot suggests using 2 clusters instead. We decide to go with the Gap statistics results and choose 3 clusters. Now we can compute 3 clusters using k-means. 
+
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+set.seed(123)
+nhc_km <- kmeans(dat, 3)
+#nhc_km
+plot(dat, col = nhc_km$cluster, pch = 20)
+```
+
+
+# 2.2 Non-Hierarchical Clustering: PAM
+
+```{r, results='hide'}
+
+nhc_pam <- pam(dat, 3)
+summary(nhc_pam)
+```
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+plot(dat, col = nhc_pam$cluster, pch = 20)
+```
+
+Average silhouette width of total data set:  0.4566432
+Silhouette width is quite small, suggesting structure is weak and could be artificial.
+
+
+# 2.3 Non-Hierarchical Clustering: FUZZY Analysis
+
+```{r, results='hide'}
+
+nhc_fan <- fanny(dat,3)
+summary(nhc_fan)
+
+```
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+plot(dat, col = nhc_fan$clustering, pch = 20)
+
+```
+
+Average silhouette is  0.4566338, very similar to pam result.
+
+
+# 2.4 Non-Hierarchical Clustering: Parametric Gaussian
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+bic <- mclustBIC(dat)
+summary(bic)
+nhc_pg <- Mclust(dat, x=bic) 
+summary(nhc_pg)
+
+plot(nhc_pg, what = "classification")
+
+```
+
+2 clusters chosen, VVV (variable volume, shape and orientation)
+
+
+# 3. Compare Kmeans vs Gaussian Clustering Solutions
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+plot(dat, col = nhc_km$cluster, pch = 20)
+legend("topleft", pch=16, col=c(1,2,3),
+       legend=c("cluster 1","cluster 2","cluster 3"))
+
+plot(dat, col = nhc_pg$classification, pch = 20)
+legend("topleft", pch=16, col=c(1,2),
+       legend=c("cluster 1","cluster 2"))
+
+```
+
+Looks as if the same observations which were in the Gaussian cluster 1 are also in the k-means cluster 1, so both algorithms chose to cluster these observations together, implying that both algorithms provide evidence supporting that the observations in this cluster are similar. The Gaussian cluster 2 is a combination of the k-means clusters 2 and 3, so the k-means algorithm split the Guassian cluster 2 further into two different clusters.
+
+

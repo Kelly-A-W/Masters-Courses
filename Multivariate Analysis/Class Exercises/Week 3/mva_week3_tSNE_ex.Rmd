@@ -1,0 +1,120 @@
+---
+title: 'Week 3: tSNE exercise'
+author: "Kelly Williams"
+date: "08/03/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, results='hide'}
+# Initialise
+
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Install packages
+library(MASS)
+library("factoextra")
+library(kernlab)
+library(devtools)
+devtools::install_github("jlmelville/coil20")
+library(coil20)
+library(Rtsne)
+
+```
+
+
+The coil data set contains 1440 observations and 16385 variables. 
+
+```{r, results='markup'}
+
+# fetch the data set from the COIL-20 website
+# takes a little while so you might want some indication of what's going on
+coil20 <- download_coil20(verbose = TRUE)
+
+# view the zeroth pose of the fourth object
+show_object(coil20, object = 4, pose = 0)
+
+# save data set to disk
+#save(coil20, file = "coil20.Rda")
+
+# Fetch COIL-100
+# Takes a long time to process all 7,200 images (a couple of hours)
+#coil100 <- download_coil100(verbose = TRUE)
+
+head(coil20)
+dim(coil20)
+
+
+```
+
+# PCA
+
+From the PCA we can see that there is no clear clusters available. 
+
+```{r, results='markup', fig.pos="H",fig.align='center'}
+
+# Example of use: PCA
+pca <- prcomp(coil20[, 1:128 ^ 2], retx = TRUE)
+# plot the scores of the first two components
+plot(pca$x[, 1:2], type = 'n')
+text(pca$x[, 1:2], labels = coil20$Label, cex = 0.5,
+     col = rainbow(length(levels(coil20$Label)))[coil20$Label])
+
+
+```
+
+
+Using tsne we can see very clear clusters in just 2 dimensions!
+
+```{r, results='markup', fig.pos="H",fig.align='center'}
+
+Labels<-coil20$Label
+coil20$Label<-as.factor(coil20$Label)
+
+## for plotting
+colors = rainbow(length(unique(coil20$Label)))
+names(colors) = unique(coil20$Label)
+
+## Executing the algorithm on curated data
+tsne <- Rtsne(coil20[, 1:128 ^ 2], dims = 2, perplexity=30, verbose=TRUE, max_iter = 500)
+exeTimeTsne<- system.time(Rtsne(coil20[, 1:128 ^ 2], dims = 2, perplexity=30, verbose=TRUE, max_iter = 500))
+
+## Plotting
+plot(tsne$Y, t='n', main="tsne")
+text(tsne$Y, labels=coil20$Label, col=colors[coil20$Label])
+
+
+```
+
+# Kernel PCA
+
+
+```{r, results='markup'}
+
+kpc1 <- kpca(~., 
+            data=data.frame(coil20[, 1:128 ^ 2]), 
+            kernel="polydot",  # polynomial of degree 2
+            kpar = list(degree=2),
+            features=2)   # want to visualise in 2D, thus want 2 PCs returned
+        
+
+```
+
+
+
+```{r, results='markup', fig.pos="H",fig.align='center'}
+
+plot(rotated(kpc1), col=colors[coil20$Label])    
+
+```
+
+
+
+

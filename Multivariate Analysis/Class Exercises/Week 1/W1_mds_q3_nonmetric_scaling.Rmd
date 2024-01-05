@@ -1,0 +1,328 @@
+---
+title: 'Week 1: Multidimensional Scaling Quetsion 3: Non-metric Scaling'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, results='hide'}
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Install packages
+# install.packages('psychTools')
+library(psychTools)
+# install.packages("smacof")
+library(smacof)
+# install.packages("Iso")
+library(Iso)
+
+# Load data
+data(cities)
+cities
+```
+
+# Question 1:
+
+- Input the dissimilarity ("cities") data from the "psych" library and save it to a variable named "Delta".
+
+```{r, results='markup'}
+
+Delta <- cities 
+Delta
+
+```
+
+# Question 2:
+
+- Save the lower triangular matrix of "Delta", as a vector, to a "Diss" variable.
+
+```{r, results='markup'}
+
+Diss <- Delta[lower.tri(Delta)]
+Diss
+
+```
+
+# Question 3:
+
+- Label/name the "Diss" variable entries from 1:(M = number of dissimilarities).
+
+```{r, results='markup'}
+
+names(Diss)<-1:length(Diss)  # m=55
+Diss
+
+```
+
+# Question 4:
+
+- Order the dissimilarity vector "Diss" in ascending order. Save the corresponding output in a variable denoted "SortedDiss".
+
+```{r, results='markup'}
+
+SortedDiss<-Diss[order(Diss, decreasing = F)]
+# or could use sort(Diss, decreasing = FALSE)
+SortedDiss
+
+```
+
+# Question 5:
+
+- Use the cmdscale function to obtain an initial configuration of the cities within a 2-dimensional space (k = 2), by means of a classical scaling approach.Save the corresponding output in a variable named Y0. Hint: The function requires a euclidean distance matrix input. 
+
+```{r}
+
+Y0 <- cmdscale(Delta)
+
+```
+
+# Question 6:
+
+- Plot the initial configuration and associated text labels.
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+require(graphics)
+Y0_x <- Y0[,1]
+Y0_y <- Y0[,2]
+plot(Y0_x,Y0_y,
+     type="n",
+     xlab="First principal co-ordinate",
+     ylab="Second principal co-ordinate", 
+     asp=1, 
+     axes=T, 
+     main="cmdscale")
+text(Y0_x,Y0_y,rownames(Delta),cex=0.6)
+
+```
+
+# Question 7:
+
+- Calculate the euclidean distances between the initial configuration Y0, and save the output to a variable named "Dist". 
+
+```{r, results='markup'}
+
+Dist <- dist(Y0, method = "euclidean") # just the distances, not the whole matrix
+Dist
+
+```
+
+# Question 8:
+
+- Convert the distances to a single vector labelled "VecDist".
+
+```{r, results='markup'}
+
+VecDist <- as.vector(Dist)
+VecDist
+
+```
+
+# Question 9:
+
+- Label/name the "VecDist" variable entries from 1:M.
+
+```{r, results='markup'}
+
+names(VecDist)<-1:length(VecDist)
+
+```
+
+# Question 10:
+
+- Order the Y0 distances "VecDist" according to the ordered dissimilarity vector "SortedDiss". Save the output in a variable named "SortedDist". Hint: Use names(SortedDiss) to order the vector
+
+```{r, results='markup'}
+
+SortedDist <- VecDist[names(SortedDiss)]
+SortedDist
+
+```
+
+# Question 11:
+
+- Calculate suitable disparities, related to "SortedDist", using isotonic regression. Hint: Apply the pava function, from the "Iso" package, to the "SortedDist" distances. 
+
+```{r}
+
+disp<-pava(SortedDist)
+
+```
+
+# Question 12:
+
+- Plot the "SortedDist" against the index order. Overlay the plot with disparity points, linked by a line. This is known as a Shephard Diagram
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+#plot(x=1:length(SortedDist), y=VecDist, xlab="Dissimilarities", ylab="Distances",
+     #main="Shepard Diagram", type="p", pch=16, col="grey")
+plot(SortedDist, xlab="Rank Order", ylab="Distances",
+     main="Shepard Diagram", type="p", pch=16, col="red")
+lines(1:length(SortedDist), disp, pch=16)
+lines(1:length(SortedDist), disp, pch=16, type = "b")
+
+```
+
+# Question 13:
+
+- Build Kruskal's stress function with 2 input variables: Y0 distances, disparities. Save the function as "Stress".
+
+```{r, results='markup'}
+
+Stress <- function(Y0_distances,disparities){
+  s <- sum((Y0_distances-disparities)^2)
+  s <- s/sum(Y0_distances^2)
+  s <- sqrt(s)
+  s
+}
+
+```
+
+# Question 14:
+
+- Calculate the initial stress.
+
+```{r, results='markup'}
+
+Stress(VecDist,disp)
+
+```
+
+# Question 15:
+
+- Redefine the stress function as a function of Y only. Name the function "StressY". Hint: Combine steps 7 - 11 with the stress function.
+
+```{r, results='markup'}
+
+
+StressY <- function(Y){
+  Y0 <- cmdscale(Y)
+  
+  dist <- dist(Y0, diag = T, upper = T)
+  vecdist <- as.matrix(dist)[lower.tri(dist)]
+  vecdist <- as.vector(vecdist)
+  names(vecdist)<-1:length(vecdist)
+  
+  diss <- Delta[lower.tri(Y)]
+  names(diss)<-1:length(diss)  
+  sorteddiss<-diss[order(diss, decreasing = F)]
+  
+  sorteddist <- vecdist[names(sorteddiss)]
+  disp<-pava(sorteddist)
+  
+  s <- sum((vecdist-disp)^2)
+  s <- s/sum(vecdist^2)
+  s <- sqrt(s)
+  s
+}
+
+StressY(Delta)
+
+```
+
+# Question 16:
+
+- Build a plotting function to plot the 2-dimensional co-ordinate output, with text labels. Call this function "PlotCoordinates".
+
+```{r, results='markup',fig.pos="H", fig.align='center'}
+
+PlotCoordinates <- function(Y){
+  
+  y0 <- cmdscale(Y)
+  
+  y0_x <- y0[,1]
+  y0_y <- y0[,2]
+  plot(y0_x,y0_y,type="n",xlab="Dimension x",ylab="Dimension y", asp=1, axes=T, main="cmdscale")
+  text(y0_x,y0_y,rownames(Y),cex=0.6)
+  
+}
+
+PlotCoordinates(Delta)
+
+```
+
+# Question 17:
+
+- Optimise the "StressY" function, return the output using the first 5 optimisation methods present in the "optim" function.
+
+```{r}
+
+OptimizedStressY <- function(Y, initial_configuration){
+  # calculate Euclidean distances and vectorise
+  Dist_opt <- dist(initial_configuration, method = "euclidean") 
+  VecDist_opt <- as.vector(Dist_opt)
+  
+  # rank order vectorised Euclidean distances
+  labels_dist_opt <- 1:length(VecDist_opt)
+  names(VecDist_opt) <- labels_dist_opt
+  
+  # order vectorised Euclidean distances according to ordered dissimilarity vector
+  Diss_opt <- as.vector(Y[lower.tri(Y)]) 
+  names(Diss_opt) <- 1:length(Diss_opt)
+  SortedDiss_opt <- sort(Diss_opt)
+  SortedDiss_opt <- VecDist_opt[order(match(names(VecDist_opt), names(SortedDiss_opt)))]
+  
+  # calculate disparities via isotonic regression
+  disparities_opt <- pava(SortedDiss_opt)
+  
+  # obtain Kruskal's Stress Stress Formula 1 components
+  stress <- sqrt((sum((VecDist_opt - disparities_opt)^2))/(sum(VecDist_opt^2)))
+  
+  return(stress)
+}
+
+# initialisation of configuration - classical scaling algorithm 
+start_configuration <- cmdscale(cities)
+start_configuration <- as.vector(start_configuration)
+
+# Method 1: Nelder-Mead
+Y0_optim1 <- optim(par = start_configuration, OptimizedStressY, method = "Nelder-Mead", Y = cities, control = list(maxit = 1000))
+Y0_optim1$value
+Y0_optim1$convergence
+
+# Method 2: BFGS
+Y0_optim2 <- optim(par = start_configuration, OptimizedStressY, method = "BFGS", Y = cities, control = list(maxit = 1000))
+Y0_optim2$value
+Y0_optim2$convergence
+
+# Method 3: CG
+Y0_optim3 <- optim(par = start_configuration, OptimizedStressY, method = "CG", Y = cities, control = list(maxit = 1000))
+Y0_optim3$value
+Y0_optim3$convergence
+
+# Method 4: L-BFGS-B
+Y0_optim4 <- optim(par = start_configuration, OptimizedStressY, method = "L-BFGS-B", Y = cities, control = list(maxit = 1000))
+Y0_optim4$value
+Y0_optim4$convergence
+
+# Method 5: SANN
+Y0_optim5 <- optim(par = start_configuration, OptimizedStressY, method = "SANN", Y = cities, control = list(maxit = 1000))
+Y0_optim5$value
+Y0_optim5$convergence
+
+```
+
+# Question 18:
+
+- Compare the convergence property and stress values of the prevailing optimisations and plot the lowest stress value configuration.
+
+Note: higher stress AS COMPARED TO the intial configuration DUE TO the ranking of distances/disparities.
+
+```{r}
+min(Y0_optim1$value, Y0_optim2$value, Y0_optim3$value, Y0_optim4$value, Y0_optim5$value)
+
+# Belongs to Nelder-Mead
+
+Y_vals <- matrix(Y0_optim1$par, ncol = 2)
+
+plot(Y_vals[,1], Y_vals[,2], type = "p", pch = 20, xlab = "Dimension 1", ylab = "Dimension 2", xlim = c(-2000, 2000), ylim = c(-2000, 2000))
+text(Y_vals[,1], Y_vals[,2], labels = names(cities), pos = 4)
+
+```

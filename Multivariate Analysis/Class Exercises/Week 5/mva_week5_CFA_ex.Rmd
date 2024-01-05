@@ -1,0 +1,254 @@
+---
+title: 'MVA Week 5: CFA Class Exercise'
+author: "Kelly Williams"
+date: "23/03/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r}
+# Initialise
+
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Install packages
+library(lavaan)
+library(haven)
+library(nFactors)
+library(psych)
+```
+
+Our data is a Strata file, so we need to download into are using a special function `read_dta` from the `haven` library.
+
+```{r, results='hide'}
+
+dat <- read_dta("nlsy97cfa.dta")
+str(dat) # tibble format
+
+```
+
+```{r}
+# convert from tibble to data frame:
+dat <- as.data.frame(dat)
+
+# remove column with index values 
+dat <- dat[,-1]
+
+# we have a lot of missing data, so lets remove all incomplete observations
+dat <- na.omit(dat)
+
+dim(dat)
+
+```
+
+We now have 1452 observations on 13 variables.
+
+We will start with the exploratory factor analysis (EFA) on the first 10 variables. We want to eventually create a measure of "conservatism" from these first 10 variables. 
+
+```{r}
+
+con_dat <- dat[,1:10]  # variables we will use to create "conservatism" latent variable
+
+ev <- eigen(cor(con_dat)) # get eigenvalues
+ev$values
+ap <- parallel(subject=nrow(con_dat),var=ncol(con_dat),
+  rep=100,cent=.05)
+nS <- nScree(x=ev$values, aparallel=ap$eigen$qevpea)
+plotnScree(nS)
+
+
+```
+From the above, only the first two eigenvalues are greater than 1, so only use these!
+
+```{r}
+
+con_fa_fit <- factanal(con_dat, factors = 2) 
+con_fa_fit
+
+```
+
+Together these two factors explain 37.8% of the total variation in the data, so not a lot.
+
+
+Because the last factor loads the least on the second factor and because it refers to the environment as opposed to the needs of people, we will drop it and repeat the analysis. 
+
+```{r}
+
+con_dat <- dat[,1:9]  # variables we will use to create "conservatism" latent variable
+
+ev <- eigen(cor(con_dat)) # get eigenvalues
+ev$values
+ap <- parallel(subject=nrow(con_dat),var=ncol(con_dat),
+  rep=100,cent=.05)
+nS <- nScree(x=ev$values, aparallel=ap$eigen$qevpea)
+plotnScree(nS)
+
+```
+
+Now there is only one eigenvalue greater than 1, so use the first factor only !
+
+```{r}
+
+con_fa_fit <- factanal(con_dat, factors = 1) 
+con_fa_fit
+
+```
+
+This one factor explains about 34.9% of the total variation in the data, so not very different from last time and still not good. Many of unique variances are very high, for example 70.8% of the variance in variable x1 is NOT accounted for by Factor 1. 
+
+
+We want to evaluate the internal consistency reliability by using Cronbach's Alpha:
+
+```{r}
+
+alpha(con_dat)
+
+```
+
+
+We have a Cronbach's Alpha of 0.8117, which is pretty good and indicates good internal consistency. Looking at the raw alpha values for each variable, all are less than the total alpha of 0.8117, implying that removing any of the measured variables would result in a decrease of the total alpha, and thus a worsening of the internal consistency.
+
+Now we can finally perform CFA on our 9 chosen variables, creating latent variable "conservative".
+
+```{r}
+
+con_cfa_model <- 'conservative =~ x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9'
+
+# fit model
+(con_cfa_fit <- cfa(con_cfa_model, data = con_dat))
+summary(con_cfa_fit)
+
+```
+
+The output above is pretty much the same as the Strata output.
+
+In order to interpret and compare coefficients, we usually look at the standardised solutions, where all observed and latent variables have been transformed to have a variance of 1. The solution is as follows: 
+
+```{r}
+
+summary(con_cfa_fit, standardized = TRUE)
+
+```
+
+The above standardised estimates (the values in the Std.all column) are the estimates that you would include in your path diagram. Interpretation of the estimates is as follows: one standard deviation increase in Conservative will result in a 0.552 standard deviation increase in x1, a 0.505 standard deviation increase in x2, etc.
+
+Also note that all loadings were statistically significant, with p-values less than 0.0001.
+
+Next we can move on to assessing the goodness of fit:
+
+```{r}
+
+fitmeasures(con_cfa_fit)
+
+```
+Again the output is almost the same as the Strata output and overall suggests that the model is a poor fit.
+
+Next we can look at Modification indices. 
+
+```{r}
+
+modindices(con_cfa_fit, sort = TRUE, maximum.number = 10)
+
+```
+We can see that the largest modification index is well over 3.84 and it is associated weith covariance between x3 and x4. Looking at the background information, we see that both of these variables focus on helping people who need help due to sickness or age, thus it does make logical sense that these two variables are highly correlated. Thus we can modify our model by adding covariance between x3 and x4. We will also omit variables x2 and x8.
+
+
+```{r}
+
+con_cfa_model2 <- 'conservative =~ x1 + x3 + x4 + x5 + x6 + x7 + x9    # x2 and x8 removed
+              x3 ~~ x4'                                            # covariance between x3 and x4 added
+
+# fit model
+(con_cfa_fit2 <- cfa(con_cfa_model2, data = con_dat))
+summary(con_cfa_fit2, standardized = TRUE)  # rather look at standardised fit
+
+
+```
+
+
+Again the output agrees with the Stava results. Now to look at the goodness of fit:
+
+
+```{r}
+
+fitmeasures(con_cfa_fit2)
+
+```
+As with the Stata output, the chisq test is still significant, indicating a poor fit, but the RMSE=0.05 and CFI>0.95, indicating a much improved model.
+
+# Adding a Second Latent Factor
+
+We want to add a second latent factor to our model, measuring "depression" based on the three variables x11, x12, x13. Note that because we are basing our depression latent variable on 3 variables, we have ZERO degrees of freedom and thus we CANNOT TEST OUR MODEL! However, we can still fit and evaluate the loadings of our model.
+
+First, we want to evaluate the internal consistency reliability by using Cronbach's Alpha:
+
+```{r}
+dep <- dat[,c(11,12,13)]
+alpha(dep)
+
+```
+
+
+alpha value is negative, suggesting either problems in the data or problems calculating alpha. 
+
+
+```{r}
+
+dep_cfa_model <- 'depression =~ x11 + x12 + x13'
+
+# fit model
+(dep_cfa_fit <- cfa(dep_cfa_model, data = dat))
+summary(dep_cfa_fit, standardized = T)
+
+```
+We can see that all loadings are significant (p-value<0.0001).
+
+We can now add everything together into one CFA model with 2 latent variables: conservative and depression.
+
+```{r}
+
+cfa_model <- 'conservative =~ x1 + x3 + x4 + x5 + x6 + x7 + x9
+              depression =~ x11 + x12 + x13
+              x3 ~~ x4
+              conservative ~~ depression'
+# fit model
+(cfa_fit <- cfa(cfa_model, data = dat))
+summary(cfa_fit, standardized = TRUE)
+
+```
+
+Again this output seems to agree with the Stata output. 
+
+We can have a quick look at the goodness of fit:
+
+```{r}
+
+fitmeasures(cfa_fit)
+
+```
+
+
+And why not compare all three models? The first conservative model, the modified conservative model, the depression model and the combined depression and conservative model. We can use AIC as it does not require models to be nested. 
+
+```{r}
+
+fitmeasures(con_cfa_fit, "aic")
+
+fitmeasures(con_cfa_fit2, "aic")
+
+fitmeasures(dep_cfa_fit, "aic")
+
+fitmeasures(cfa_fit, "aic")
+
+```
+
+The depression model has the lowest AIC by far, suggesting that it is the model that fits best. Out of the conservative models, the modified conservative model fits best.

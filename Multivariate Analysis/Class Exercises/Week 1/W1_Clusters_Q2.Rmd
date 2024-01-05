@@ -1,0 +1,82 @@
+---
+title: "Week 1: Cluster Analysis: Exercise 2"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+# Initialise
+
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Install packages
+library(biclust)
+
+```
+
+
+```{r}
+
+dat <- read.table("food.txt", header = TRUE)
+head(dat)
+
+# exract relavent variables
+dat <- dat[,1:7]
+
+# divide each variable by the weight of the food item
+dat<-dat/dat$weight.grams
+
+# remove weight column
+dat<-dat[,-6]
+
+# standardize
+dat <- scale(dat)
+head(dat)
+
+```
+
+
+```{r}
+
+# Apply Plaid models 
+X <- discretize(dat)   # prepping data for plaid model
+set.seed(555)
+res <- biclust(X, 
+               method = BCPlaid(),  # perform Plaid algorithm
+               cluster="b",         # cluster both rows and columns
+               fit.model=y~m+a+b,   # linear model formula to fit each layer
+               verbose = T,
+               back.fit = 1,        # to refine fitting of layer via additional iteration runs 
+               col.release=0.5,     # threshold to prune columns in the layers depending on column homogeneity
+               # higher the threshold, the more are pruned, less clusters selected
+               shuffle=5,           # Before a layer is added, it's statistical significance is compared against 5 layers obtained by random 
+               max.layers=15)
+
+summary(res)
+
+```
+Only one clusters was found. It has 279 observations and only 2 variables. 
+
+```{r}
+# Visualise
+
+parallelCoordinates(x=dat, bicResult = res, number = 1, xlim=c(1,290), 
+                    ylim=c(-1,5)) # only 1 cluster, so only look at the first cluster
+drawHeatmap(x=dat, bicResult = res, number = 1)
+
+
+```
+
+We can see from the first plot (the line plot) that the bold lines represent the two variables selected for our cluster. The y-axis shows the values obtained for each variable for the different food items selected for the cluster. We can see that they both follow a similar pattern, with food items in the cluster obtaining low values for both of these variables. 
+
+The heatmap again re-iterates all of food items in the cluster obtained low values for both of these variables, illustrated by how the heatmap is mainly made up of light green with very little variation. We can also see that the two variables selected for the cluster were protien and cholestral. 
+
+
+

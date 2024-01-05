@@ -1,0 +1,62 @@
+---
+title: "Too Many Lecturers Problem: R Code"
+output: html_notebook
+---
+
+This type of blind source seperation problem can be solved in R using the FastICA and Wave R packages.
+
+First we need to read in the microphones audio files. This is done using the `readWave()` function
+
+```{r ReadinAudio}
+
+library(tuneR)
+library(fastICA)
+
+X_1 = readWave("C:/Users/Michael/Documents/UCT 2018/MV/ICA/Example 1/Example1_mic1.wav")
+X_2 = readWave("C:/Users/Michael/Documents/UCT 2018/MV/ICA/Example 1/Example1_mic2.wav")
+X_3 = readWave("C:/Users/Michael/Documents/UCT 2018/MV/ICA/Example 1/Example1_mic3.wav")
+X_1 = readWave(file.choose())
+X_2 = readWave(file.choose())
+X_3 = readWave(file.choose())
+play(X_1)
+play(X_2)
+play(X_3)
+
+```
+
+The left component of each Wave object holds the audios amplitude. This is the data that we are going to use. 
+
+```{r SomeData}
+str(X_1@left)
+x_1 = X_1@left[1:400000]
+x_2 = X_2@left[1:400000]
+x_3 = X_3@left[1:400000]
+
+X = cbind(x_1, x_2, x_3)
+Xt = as.ts(X)
+
+plot(Xt)
+
+```
+
+Using the `FastICA()` function (will be explained later), we can separate the mixed audio into their respective independent components. In this case, we want to get  Duncan, Kelly and my explanations as seperate audio files.
+```{r ICA Implementation}
+fastica = fastICA(X, 3)
+
+IC_Source = fastica$S
+IC_ts = as.ts(IC_Source)
+plot(IC_ts)
+
+IC1 = normalize(Wave(left = as.numeric(IC_Source[, 1]), samp.rate = 48000, bit = 16), unit = "16")
+IC2 = normalize(Wave(left = as.numeric(IC_Source[, 2]),
+samp.rate = 48000, bit = 16), unit = "16")
+IC3 = normalize(Wave(left = as.numeric(IC_Source[, 3]),
+samp.rate = 48000, bit = 16), unit = "16")
+
+play(IC1)
+play(IC2)
+play(IC3)
+
+```
+
+

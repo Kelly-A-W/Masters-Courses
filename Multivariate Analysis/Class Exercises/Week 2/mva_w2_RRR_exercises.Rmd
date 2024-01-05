@@ -1,0 +1,58 @@
+---
+title: "MVA Week 2: RRR"
+author: "Kelly Williams"
+date: "27/02/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, results='hide', warning=FALSE}
+# Initialize
+
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Install packages
+#install.packages("rrr")
+library(rrr)
+```
+
+
+```{r, results='markup'}
+
+pah <- read.table("PAH.txt", header = T)
+head(pah)
+
+```
+
+
+```{r, results='markup'}
+
+Y <- pah[,2:11]
+X <- pah[,12:38]
+
+fitrrr <- rrr(X, Y, 
+              type = "identity", # want matrix of parameters to be identity matrix
+              rank = "full", 
+              k = 0.0005)           # makes covariance matrices easier to invert
+
+```
+
+From the rank trace plot below we can see that the elbow of the plot is at $x=5$, suggesting that the rank of the regression coefficient matrix need only be 5. 
+
+```{r, fig.pos="H",fig.align='center'}
+
+rank_trace(X, Y, type = "identity", k = 0.0005, plot = TRUE,
+  interactive = FALSE)
+
+```
+
+
+
+
+

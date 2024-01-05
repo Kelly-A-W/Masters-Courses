@@ -1,0 +1,93 @@
+---
+title: "MVA Week 4: Independent Component Analysis"
+output: html_notebook
+---
+
+In this example, we're going to try and extract the individual audio signals from some sound mixed data. The data we have is 3 recordings from microphones, "mic1.wav", "mic2.wav"  and "mic3.wav". These are available on Vula. Once you have downloaded the audio files, you need to read them in using the readWave function.
+
+Some of the code has been left for you to figure out. A solution will be uploaded to Vula at the end of the week.
+
+```{r ReadInData}
+library(tuneR)
+library(fastICA)
+
+
+#Using the readWave() function and the audios file path as the parameter, read in the 3 audio files, mic1.wav etc.
+mic_1 = readWave("mic1.wav")
+mic_2 = readWave("mic2.wav")
+mic_3 = readWave("mic3.wav")
+```
+
+Using the `str()` function, you can explore what the Wave object contains. One of the components represents the sound wave and this is what we need to extract.
+
+```{r}
+
+str(mic_1)
+
+```
+
+The left component of each Wave object holds the audios amplitude. This is the data that we are going to use. 
+
+
+```{r}
+
+X1 = mic_1@left
+X2 = mic_2@left
+X3 = mic_3@left
+
+#We then combine the data into 1 matrix using cbind()
+
+X = cbind(X1, X2, X3)
+head(X)
+
+```
+
+Before we carry on, lets plot $X$ as a time series:
+
+```{r}
+
+Xt = as.ts(X)
+
+plot(Xt)
+
+```
+Now use the `fastICA` function to perform the `FastICA` algorithm, i.e. to separate the mixed audio into their respective independent components. So would like each speaker to have their own separate audio file. 
+
+```{r}
+
+?FastICA
+fastica = fastICA(X, 3) # performing ICA, specifying that we want 3 components
+
+```
+
+We have performed ICA on our data $X$, now we need to extract the independent component matrix S from the result of the FastICA function:
+
+```{r}
+
+IC_s = fastica$S
+IC_ts = as.ts(IC_s)
+plot(IC_ts)
+
+```
+
+We can see the clear difference between these time series plots and the previous time series plots. While before all three time series looked the same, here we can see distinct differences between the three series: series 2 fluctuates a lot less and on average has a much smaller amplitude, while series 3 fluctuates a lot more with distinct "clusters" of similar amplitude, while series 1 is much sharper while also fluctuating a lot. 
+
+```{r}
+
+#The samp.rate and bit can be found by investigating the Wave object
+IC1 = normalize(Wave(left = as.numeric(IC_s[, 1]), # Object of class "numeric" representing the left channel.
+                     samp.rate = 48000, # Object of class "numeric" - the sampling rate, e.g. 44100 for CD quality.
+                     bit = 16), # Object of class "numeric", common is 16 for CD quality, or 8 for a rather rough representation.
+                unit = "16") #  (i.e. 16-bit) for rescaling to integers in [-32767, 32767]
+IC2 = normalize(Wave(left = as.numeric(IC_s[, 2]), samp.rate = 48000, bit = 16), unit = "16")
+IC3 = normalize(Wave(left = as.numeric(IC_s[, 3]), samp.rate = 48000, bit = 16), unit = "16")
+
+play(IC1)
+play(IC2)
+play(IC3)
+
+#If you've been successful, you should hear 3 distinct music clips
+
+```
+
+

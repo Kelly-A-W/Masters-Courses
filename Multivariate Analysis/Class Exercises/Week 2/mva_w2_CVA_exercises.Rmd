@@ -1,0 +1,155 @@
+---
+title: 'MVA Week 2: CVA'
+author: "Kelly Williams"
+date: "27/02/2022"
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{float}
+   - \floatplacement{figure}{H}
+output: pdf_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r, results='hide', warning=FALSE}
+# Initialise
+
+# Clear environment
+rm(list=ls())
+# Clear all plots
+if(!is.null(dev.list())) dev.off()
+
+# Install packages
+#install.packages("MASS")
+library(MASS)
+#install.packages("CCA")
+library(CCA)
+#install.packages("rrr")
+library(rrr)
+```
+
+
+```{r, results='markup'}
+
+# Load data
+data("iris")
+# ignore species column
+# the variables should all be measured in the same units, but scale just in case
+dat <- iris[,1:4]
+dat <- scale(dat)
+head(dat)
+
+```
+
+
+```{r}
+
+sepal <- dat[,1:2]  # X
+petal <- dat[,3:4]  # Y
+sepal <- as.matrix(sepal, nrow=nrow(sepal), ncol=ncol(sepal))
+petal <- as.matrix(petal, nrow=nrow(petal), ncol=ncol(petal))
+
+
+```
+
+
+# CCA using CANCOR
+
+Below we can see the $X$ coefficients and the $Y$ coefficients formed from the CVA. The first pair $(\xi_1, \omega_1)$ is denoted as follows: 
+
+$$\xi_1 = (-0.07251736)X_1 + (0.03052965)X_2$$
+and
+
+$$\omega_1 = (-0.12279948)Y_1 + (0.04332444)Y_2$$
+where $X_1$ and $X_2$ are sepal length and sepal width and $Y_1$ and $Y_2$ are petal length and petal width. Similarly, the second pair of variables are similarly as follows:
+
+$$\xi_2 = (0.03932826)X_1 + (0.07663824)X_2$$
+
+and
+
+$$\omega_2 = (-0.2774814)Y_1 + (0.3003309)Y_2.$$
+
+We can see that the first $X$ CCV, $\xi_1$, contrasts sepal length with sepal width and the second $X$ CCV $\xi_2$ is a weighted average of sepal length and sepal width, with sepal width being more highly represented. 
+
+The first $Y$ CCV, $\omega_1$, petal length is mostly represented while the second CCV $\omega_2$ contrasts petal length against petal width. 
+
+
+```{r, results='markup'}
+
+cca1 <- cancor(sepal, petal, xcenter = T, ycenter = T)
+cca1$xcoef
+cca1$ycoef
+
+```
+
+The pairs are ranked on their correlations, so that $(\xi_1, \omega_1)$ has the largest possible correlation among all the linear combinations of $X$ and $Y$. The first pair have a high positive correlation of 0.94, while the second pair have a very low correlation of only 0.12 and thus are barely correlated at all. 
+
+```{r, results='markup'}
+
+cca1$cor
+
+```
+
+# CCA using CCA
+
+Using CCA results in the same correlations as when  cancor was used but the coefficients are different. This is due to the different scaling methods used by the two algorithms. using CCA, we can see that the first CCV of the sepal measurements mostly represents sepal length and slightly contrasts this with sepal width. The second sepal CCV is a weighted average of sepal length and sepal width, with sepal width weighing more. The first petal CCV mostly represents petal length, slightly contrasting it with petal width. The second petal CCV contrasts petal length with petal width.  
+
+```{r, results='markup'}
+
+cca2 <- cc(sepal, petal)
+cca2$xcoef
+cca2$ycoef
+cca2$cor
+
+```
+
+The top right plot below shows a strong positive correlation between $\xi_1$ and $\omega_1$, as is to be expected by the very high correlation coefficient seen earlier. The top left plot shows the extremely weak correlation between the second pair of variables which is again to be expected given the very low correlation coefficient seen earlier. The bottom to plots shows the lack of correlation between the CCVs from different pairs. 
+
+```{r, fig.pos="H",fig.align='center'}
+
+par(mfrow=c(2,2))
+plot(cca2$scores$yscores[,1], cca2$scores$xscores[,1])
+plot(cca2$scores$yscores[,2], cca2$scores$xscores[,2])
+plot(cca2$scores$yscores[,1], cca2$scores$yscores[,2])
+plot(cca2$scores$xscores[,2], cca2$scores$xscores[,1])
+
+```
+
+From the below we can see that there is a very strong negative correlation between sepal length and the first CCV, and a weak positive correlation between sepal width and the first CCV. There is a strong positive correlation between CCV2 and sepal width but a very weak correlation between sepal length and CCV2.
+
+```{r, results='markup'}
+
+cca2$scores$corr.X.xscores
+
+```
+
+There are very strong negative correlations between both petal length and CCV1 and petal width and CCV1. There is a very weak positive correlation between petal length and CCV2 and a slightly stronger correlation between petal width and CCV2
+
+```{r, results='markup'}
+
+cca2$scores$corr.Y.yscores
+
+```
+
+
+
+# CCA using RRR
+
+Again the coefficients are different but usually the correlations are also different to what was seen previously. 
+
+```{r, results='markup'}
+
+cca3 <- rrr(sepal, petal, k=0, 
+            type = "cva")
+cca3$canonical_corr
+
+```
+
+
+
+
